@@ -301,7 +301,7 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         {/* ── Sidebar ────────────────────────────────────────────────── */}
         {sidebarOpen && (
-          <aside className="w-72 bg-gray-900 border-r border-gray-800 flex flex-col overflow-hidden shrink-0">
+          <aside className="w-56 sm:w-72 bg-gray-900 border-r border-gray-800 flex flex-col overflow-hidden shrink-0">
             {/* Tab bar */}
             <div className="flex border-b border-gray-800 shrink-0">
               {TABS.map(t => (
