@@ -658,9 +658,9 @@ export default function App() {
 
           {!imageEl ? (
             /* ── Drop Zone ────────────────────────────────────────── */
-            <div className="flex flex-col items-center justify-center w-full h-full p-8">
+            <div className="flex flex-col items-center justify-center w-full h-full p-4 sm:p-8">
               <div
-                className={`w-full max-w-2xl rounded-2xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all p-12 ${
+                className={`w-full max-w-2xl rounded-2xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all p-6 sm:p-12 ${
                   dragOver
                     ? 'border-green-400 bg-green-950/30 scale-105'
                     : 'border-gray-700 hover:border-gray-500 bg-gray-900/50'
@@ -670,9 +670,9 @@ export default function App() {
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleDrop}
               >
-                <div className="text-7xl mb-5 select-none">🖼️</div>
-                <p className="text-gray-300 text-2xl font-bold font-mono mb-2">DROP IMAGE HERE</p>
-                <p className="text-gray-600 text-sm font-mono">or click to browse · PNG · JPG · WebP · GIF</p>
+                <div className="text-6xl sm:text-7xl mb-4 sm:mb-5 select-none">🖼️</div>
+                <p className="text-gray-300 text-xl sm:text-2xl font-bold font-mono mb-3">DROP IMAGE HERE</p>
+                <p className="text-gray-600 text-xs sm:text-sm font-mono text-center leading-relaxed">or click to browse<br className="sm:hidden" />· PNG · JPG · WebP · GIF</p>
 
                 <div className="mt-10 w-full max-w-lg">
                   <p className="text-xs text-gray-700 font-mono uppercase tracking-widest mb-3 text-center">AVAILABLE PRESETS</p>
