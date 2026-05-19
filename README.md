@@ -1,4 +1,4 @@
-# React Vite Tailwind Dithering App
+# PixelDither
 
 ![App screenshot](public/screenshot.png)
 
