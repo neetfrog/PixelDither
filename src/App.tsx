@@ -44,7 +44,7 @@ const ALGORITHMS: { id: DitherAlgorithm; label: string; category: string }[] = [
   { id: 'noise',           label: 'Random Noise',        category: 'Noise' },
 ];
 
-type ViewMode = 'output' | 'split' | 'original';
+type ViewMode = 'output' | 'original';
 type TabId = 'presets' | 'palette' | 'dither' | 'adjust' | 'glitch';
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
@@ -63,14 +63,15 @@ export default function App() {
   const [paletteFilter, setPaletteFilter] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('output');
-  const [splitPos, setSplitPos] = useState(50); // percent
   const [gridOverlay, setGridOverlay] = useState(false);
-  const [splitDragging, setSplitDragging] = useState(false);
   const [activePreset, setActivePreset] = useState<string>('');
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const srcCanvasRef = useRef<HTMLCanvasElement>(null);
-  const splitContainerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const cameraCanvasRef = useRef<HTMLCanvasElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Load image onto hidden canvas ──────────────────────────────────
@@ -120,28 +121,38 @@ export default function App() {
     });
   }, [imageEl, opts]);
 
-  // ── Split slider drag ──────────────────────────────────────────────
+  // ── Camera setup and cleanup ───────────────────────────────────────
   useEffect(() => {
-    if (!splitDragging) return;
-    const onMove = (e: MouseEvent | TouchEvent) => {
-      if (!splitContainerRef.current) return;
-      const rect = splitContainerRef.current.getBoundingClientRect();
-      const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
-      const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
-      setSplitPos(pct);
-    };
-    const onUp = () => setSplitDragging(false);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    window.addEventListener('touchmove', onMove);
-    window.addEventListener('touchend', onUp);
+    if (!cameraActive) {
+      // Clean up camera stream
+      if (videoRef.current?.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+      }
+      return;
+    }
+
+    // Request camera access
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      .then(stream => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          setCameraError(null);
+        }
+      })
+      .catch(err => {
+        setCameraError(`Camera access denied: ${err.message}`);
+        setCameraActive(false);
+      });
+
     return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      window.removeEventListener('touchmove', onMove);
-      window.removeEventListener('touchend', onUp);
+      if (videoRef.current?.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+      }
     };
-  }, [splitDragging]);
+  }, [cameraActive]);
 
   // ── Helpers ────────────────────────────────────────────────────────
   const setPalette = (p: Palette) => {
@@ -162,6 +173,31 @@ export default function App() {
     const img = new Image();
     img.onload = () => setImageEl(img);
     img.src = url;
+  };
+
+  const captureFromCamera = () => {
+    if (!videoRef.current || !cameraCanvasRef.current) return;
+    const canvas = cameraCanvasRef.current;
+    const ctx = canvas.getContext('2d')!;
+    
+    // Set canvas size to video size
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    
+    // Draw video frame to canvas
+    ctx.drawImage(videoRef.current, 0, 0);
+    
+    // Create image from canvas
+    canvas.toBlob(blob => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        setImageEl(img);
+        setCameraActive(false);
+      };
+      img.src = url;
+    }, 'image/jpeg', 0.95);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -243,7 +279,7 @@ export default function App() {
             <span className="text-green-400 font-bold text-xl tracking-widest font-mono">PIXEL</span>
             <span className="text-purple-400 font-bold text-xl tracking-widest font-mono">DITHER</span>
           </div>
-          <span className="text-gray-700 text-xs font-mono hidden sm:block">// retro 8-bit photo lab</span>
+          <span className="text-gray-700 text-xs font-mono hidden sm:block">// 8-bit photo lab</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -251,13 +287,13 @@ export default function App() {
             <>
               {/* View mode toggle */}
               <div className="flex bg-gray-800 rounded overflow-hidden border border-gray-700">
-                {(['output','split','original'] as ViewMode[]).map(vm => (
+                {(['output','original'] as ViewMode[]).map(vm => (
                   <button
                     key={vm}
                     onClick={() => setViewMode(vm)}
                     className={`px-2 py-1 text-xs transition-colors ${viewMode === vm ? 'bg-gray-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
                   >
-                    {vm === 'output' ? '🖼' : vm === 'split' ? '⬅➡' : '📷'}
+                    {vm === 'output' ? '🖼' : '📷'}
                   </button>
                 ))}
               </div>
@@ -274,7 +310,7 @@ export default function App() {
                 disabled={!outputUrl || processing}
                 className="flex items-center gap-1 px-3 py-1.5 bg-green-700 hover:bg-green-600 disabled:opacity-40 rounded text-xs font-bold transition-colors font-mono"
               >
-                ⬇ SAVE PNG
+                ⬇ SAVE
               </button>
             </>
           )}
@@ -282,7 +318,14 @@ export default function App() {
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center gap-1 px-3 py-1.5 bg-purple-700 hover:bg-purple-600 rounded text-xs font-bold transition-colors font-mono"
           >
-            📁 LOAD IMAGE
+            📁 IMPORT
+          </button>
+          <button
+            onClick={() => setCameraActive(true)}
+            className="flex items-center gap-1 px-3 py-1.5 bg-blue-700 hover:bg-blue-600 rounded text-xs font-bold transition-colors font-mono"
+            title="Capture from webcam"
+          >
+            📷 CAMERA
           </button>
           <input
             ref={fileInputRef}
@@ -295,6 +338,7 @@ export default function App() {
               e.target.value = '';
             }}
           />
+          <canvas ref={cameraCanvasRef} className="hidden" />
         </div>
       </header>
 
@@ -728,56 +772,6 @@ export default function App() {
                     style={{ maxHeight: 'calc(100vh - 160px)' }}
                   />
                 )}
-
-                {viewMode === 'split' && outputUrl && originalUrl && (
-                  <div
-                    ref={splitContainerRef}
-                    className="relative overflow-hidden rounded shadow-2xl cursor-col-resize select-none"
-                    style={{ maxHeight: 'calc(100vh - 160px)' }}
-                  >
-                    {/* Original (background) */}
-                    <img
-                      src={originalUrl}
-                      alt="Original"
-                      className="block max-w-full"
-                      style={{ maxHeight: 'calc(100vh - 160px)' }}
-                      draggable={false}
-                    />
-                    {/* Dithered (clipped overlay) */}
-                    <div
-                      className="absolute inset-0 overflow-hidden"
-                      style={{ width: `${splitPos}%` }}
-                    >
-                      <img
-                        src={outputUrl}
-                        alt="Dithered"
-                        className="block"
-                        style={{
-                          imageRendering: 'pixelated',
-                          maxHeight: 'calc(100vh - 160px)',
-                          width: '100%',
-                          objectFit: 'cover',
-                          objectPosition: 'left',
-                        }}
-                        draggable={false}
-                      />
-                    </div>
-                    {/* Drag handle */}
-                    <div
-                      className="absolute inset-y-0 w-1 bg-white/80 shadow-xl cursor-col-resize"
-                      style={{ left: `calc(${splitPos}% - 2px)` }}
-                      onMouseDown={() => setSplitDragging(true)}
-                      onTouchStart={() => setSplitDragging(true)}
-                    >
-                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-white rounded-full shadow-lg flex items-center justify-center">
-                        <span className="text-gray-800 text-xs">⬅➡</span>
-                      </div>
-                    </div>
-                    {/* Labels */}
-                    <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded font-mono">ORIGINAL</div>
-                    <div className="absolute top-2 bg-black/60 text-green-400 text-xs px-2 py-0.5 rounded font-mono" style={{ left: `calc(${splitPos}% - 10px)`, transform: 'translateX(-100%)' }}>DITHERED</div>
-                  </div>
-                )}
               </div>
 
               {/* Info / action bar */}
@@ -802,7 +796,7 @@ export default function App() {
                     disabled={!outputUrl || processing}
                     className="px-4 py-1.5 text-xs bg-green-700 hover:bg-green-600 disabled:opacity-40 rounded transition-colors font-mono font-bold"
                   >
-                    ⬇ SAVE PNG
+                    ⬇ SAVE
                   </button>
                 </div>
               </div>
@@ -810,6 +804,58 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* ── Camera Modal ─────────────────────────────────────────────── */}
+      {cameraActive && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border-2 border-blue-600 rounded-lg shadow-2xl flex flex-col items-center gap-4 p-6 max-w-lg w-full">
+            <h2 className="text-xl font-bold text-blue-400 font-mono">📷 CAMERA CAPTURE</h2>
+            
+            {cameraError ? (
+              <div className="text-center text-red-400 text-sm">
+                <p className="font-mono mb-2">{cameraError}</p>
+                <button
+                  onClick={() => {
+                    setCameraError(null);
+                    setCameraActive(false);
+                  }}
+                  className="px-4 py-2 bg-red-700 hover:bg-red-600 rounded text-xs font-bold transition-colors font-mono"
+                >
+                  CLOSE
+                </button>
+              </div>
+            ) : (
+              <>
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full aspect-video bg-black rounded border border-gray-700"
+                  style={{ maxWidth: '100%' }}
+                />
+                <div className="flex gap-3 w-full">
+                  <button
+                    onClick={captureFromCamera}
+                    className="flex-1 px-4 py-3 bg-green-700 hover:bg-green-600 rounded text-xs font-bold transition-colors font-mono text-white"
+                  >
+                    📸 SNAP & DITHER
+                  </button>
+                  <button
+                    onClick={() => setCameraActive(false)}
+                    className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded text-xs font-bold transition-colors font-mono text-gray-100"
+                  >
+                    ✕ CANCEL
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 text-center font-mono">
+                  Position your subject and click SNAP<br />to capture and apply dithering effects
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
