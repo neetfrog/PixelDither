@@ -215,9 +215,15 @@ export default function App() {
     setSelectedPaletteId(pal.id);
     setUseCustomPalette(false);
     setActivePreset(presetId);
+
+    const presetOpts = {
+      ...preset.opts,
+      ditherStrength: Math.min(preset.opts.ditherStrength ?? 1, 0.95),
+    };
+
     setOpts({
       ...DEFAULT_OPTS,
-      ...preset.opts,
+      ...presetOpts,
       palette: pal.colors,
       glitch: preset.opts.glitch ?? DEFAULT_GLITCH,
     });

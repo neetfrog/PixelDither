@@ -36,7 +36,7 @@ export const PRESETS: Preset[] = [
     opts: {
       pixelSize: 3,
       algorithm: 'floyd_steinberg',
-      ditherStrength: 1.0,
+      ditherStrength: 0.95,
       brightness: 10,
       contrast: 40,
       saturation: -100,
@@ -223,7 +223,7 @@ export const PRESETS: Preset[] = [
     opts: {
       pixelSize: 2,
       algorithm: 'floyd_steinberg',
-      ditherStrength: 1.0,
+      ditherStrength: 0.95,
       brightness: 0,
       contrast: 30,
       saturation: -100,
@@ -274,7 +274,7 @@ export const PRESETS: Preset[] = [
     opts: {
       pixelSize: 6,
       algorithm: 'noise',
-      ditherStrength: 1.0,
+      ditherStrength: 0.95,
       brightness: 0,
       contrast: 40,
       saturation: 80,
